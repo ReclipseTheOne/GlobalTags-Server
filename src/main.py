@@ -1,9 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends, Body
-import fastapi
 
 from pydantic import BaseModel
 from typing import List
-from sqlalchemy import create_engine, Integer, Column, String, Boolean
+from sqlalchemy import create_engine, Integer, Column, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -20,6 +19,7 @@ Base = declarative_base()
 # FastAPI setup
 app = FastAPI()
 load_dotenv('.env')
+
 
 ### MODELS ###
 
@@ -49,6 +49,7 @@ class TagSchema(BaseModel):
         orm_mode = True
         from_attributes = True
 
+
 # Pydantic schema for response
 class TagResponseSchema(BaseModel):
     name: str
@@ -58,6 +59,7 @@ class TagResponseSchema(BaseModel):
     class Config:
         orm_mode = True
         from_attributes = True
+
 
 # Pydantic schema for delete
 class DeleteTagSchema(BaseModel):

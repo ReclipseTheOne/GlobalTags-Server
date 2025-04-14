@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Body
+import uvicorn
+from uvicorn.config import LOGGING_CONFIG
 
 from pydantic import BaseModel
 from typing import List
@@ -6,9 +8,16 @@ from sqlalchemy import create_engine, Integer, Column, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+from rites.logger import Logger
+from rites.chrono import Chrono
+
 import os
 from dotenv import load_dotenv
 
+
+# Rites Setup
+logger = Logger("logs", log_name="FastAPI")
+chrono = Chrono(logger)
 
 # Database setup
 DATABASE_URL = "sqlite:///./tags.db"
@@ -16,12 +25,15 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# FastAPI setup
+# FastAPI and dotenv setup
 app = FastAPI()
 load_dotenv('.env')
 
+DATABASE_KEY = os.environ.get("DATABASE_KEY")
 
-### MODELS ###
+if DATABASE_KEY is None:
+    raise ValueError("DATABASE_KEY is not defined in .env")
+
 
 # Tag model
 class Tag(Base):
@@ -95,7 +107,7 @@ def get_tag(name: str, db=Depends(get_db)):
 
 @app.post("/tags", response_model=dict)
 def create_tag(tag: TagSchema, db=Depends(get_db)):
-    if tag.key != os.environ.get("DATABASE_KEY"):
+    if tag.key != DATABASE_KEY:
         return {"success": False, "error": "Invalid key. Access denied."}
     if tag.name in [t.name for t in db.query(Tag).all()]:
         return {"success": False, "error": "Tag already exists"}
@@ -109,7 +121,7 @@ def create_tag(tag: TagSchema, db=Depends(get_db)):
 
 @app.delete("/tags/{name}", response_model=dict)
 def delete_tag(name: str, delete_tag: DeleteTagSchema = Body(...), db=Depends(get_db)):
-    if delete_tag.key != os.environ.get("DATABASE_KEY"):
+    if delete_tag.key != DATABASE_KEY:
         return {"success": False, "error": "Invalid key. Access denied."}
 
     tag = db.query(Tag).filter(Tag.name == name).first()
@@ -119,3 +131,21 @@ def delete_tag(name: str, delete_tag: DeleteTagSchema = Body(...), db=Depends(ge
     db.delete(tag)
     db.commit()
     return {"success": True}
+
+
+if __name__ == "__main__":
+    # Completely disable Uvicorn's logging
+    LOGGING_CONFIG["loggers"]["uvicorn"] = {"level": "CRITICAL", "handlers": []}
+    LOGGING_CONFIG["loggers"]["uvicorn.access"] = {"level": "CRITICAL", "handlers": []}
+    LOGGING_CONFIG["loggers"]["uvicorn.error"] = {"level": "CRITICAL", "handlers": []}
+
+    # You could also completely replace the logging config if needed
+    # LOGGING_CONFIG = { your custom config }
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="critical",
+        log_config=LOGGING_CONFIG
+    )

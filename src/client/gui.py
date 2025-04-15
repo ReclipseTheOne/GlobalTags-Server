@@ -1,8 +1,12 @@
-from PySide6.QtWidgets import QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QTextEdit, QGridLayout
+from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QTextEdit, QGridLayout
 from PySide6.QtCore import Qt, Signal, QTimer
 import rites.logger as l
 
-from widgets.ServerStatItem import ServerStatItem
+from .styles import Styles
+from .widgets.ImageButton import ImageButton
+
+from .widgets.ServerStatItem import ServerStatItem
+from .widgets.CustomTitleBar import CustomTitleBar
 
 import threading
 import os
@@ -12,7 +16,7 @@ import psutil
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LOGGER = l.get_sec_logger("logs", log_name="GUI", handles_zipping=False)
+LOGGER = l.get_sec_logger("logs", log_name="GUI")
 
 
 class ServerManagerGUI(QMainWindow):
@@ -23,13 +27,15 @@ class ServerManagerGUI(QMainWindow):
 
     def __init__(self, run_server_func, stop_server_func=None):
         super().__init__()
+        self.setWindowFlags(Qt.FramelessWindowHint)
+
         self.run_server_func = run_server_func
         self.stop_server_func = stop_server_func
         self.server_thread = None
         self.server_running = False
         self.server_process = None
 
-        self.setWindowTitle("Tag Server Manager")
+        self.setWindowTitle("GlobalTags Server")
         self.setGeometry(100, 100, 800, 500)
         self.setup_ui()
 
@@ -42,11 +48,20 @@ class ServerManagerGUI(QMainWindow):
         self.stats_timer.start(2000)  # Update every 2 seconds
 
     def setup_ui(self):
-        """Set up the user interface components"""
+        "Shouldn't be called more than once"
+
+        # ------------- WINDOW DEFINE START -------------
+
         # Main widget and layout
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         main_layout.setSpacing(20)
+
+        # Add custom title bar
+        self.title_bar = CustomTitleBar("GlobalTags Server", self)
+        self.title_bar.closeClicked.connect(self.close)
+        self.title_bar.minimizeClicked.connect(self.showMinimized)
+        main_layout.addWidget(self.title_bar)
 
         # Status section
         status_widget = QWidget()
@@ -102,26 +117,13 @@ class ServerManagerGUI(QMainWindow):
         button_layout = QGridLayout()
         button_layout.setSpacing(10)
 
-        # Start button
-        self.start_button = QPushButton("Start Server")
-        self.start_button.setStyleSheet(
-            "QPushButton { background-color: #5cb85c; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
-            "QPushButton:hover { background-color: #4cae4c; }"
-            "QPushButton:disabled { background-color: #cccccc; }"
-        )
-        self.start_button.clicked.connect(self.start_server)
-        button_layout.addWidget(self.start_button, 0, 0)
+        # Power Button
+        self.power_button = ImageButton("src/resources/off_button", size=(16, 16))
+        self.power_button.clicked.connect(self.switch_power)
 
-        # Stop button
-        self.stop_button = QPushButton("Stop Server")
-        self.stop_button.setStyleSheet(
-            "QPushButton { background-color: #d9534f; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
-            "QPushButton:hover { background-color: #c9302c; }"
-            "QPushButton:disabled { background-color: #cccccc; }"
-        )
-        self.stop_button.clicked.connect(self.stop_server)
-        self.stop_button.setEnabled(False)
-        button_layout.addWidget(self.stop_button, 0, 1)
+        button_layout.addWidget(self.power_button, 0, 0)
+
+        # ------------- WINDOW DEFINE END -------------
 
         main_layout.addLayout(button_layout)
         self.setCentralWidget(main_widget)
@@ -163,27 +165,7 @@ class ServerManagerGUI(QMainWindow):
 
         self.server_running = True
         self.server_start_time = time.time()
-        self.start_button.setEnabled(False)
-        self.stop_button.setEnabled(True)
-
-    def _run_server_thread(self):
-        """Run the server in a thread"""
-        try:
-            self.status_changed.emit("Server Status: Online")
-            self.append_log("[SUCCESS] Server is now online!")
-
-            # Get the current process
-            self.server_process = psutil.Process(os.getpid())
-
-            # Start the actual server
-            self.run_server_func()
-        except Exception as e:
-            self.status_changed.emit(f"Server Status: Error - {str(e)}")
-            self.append_log(f"[ERROR] {str(e)}")
-            self.server_running = False
-            self.server_start_time = None
-            self.start_button.setEnabled(True)
-            self.stop_button.setEnabled(False)
+        self.power_button.change_icon("src/resources/on_button")
 
     def stop_server(self):
         """Stop the server"""
@@ -205,8 +187,32 @@ class ServerManagerGUI(QMainWindow):
         self.server_start_time = None
         self.status_changed.emit("Server Status: Offline")
         self.append_log("[INFO] Server has been stopped")
-        self.start_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
+        self.power_button.change_icon("src/resources/off_button")
+
+    def _run_server_thread(self):
+        """Run the server in a thread"""
+        try:
+            self.status_changed.emit("Server Status: Online")
+            self.append_log("[SUCCESS] Server is now online!")
+
+            # Get the current process
+            self.server_process = psutil.Process(os.getpid())
+
+            # Start the actual server
+            self.run_server_func()
+        except Exception as e:
+            self.status_changed.emit(f"Server Status: Error - {str(e)}")
+            self.append_log(f"[ERROR] {str(e)}")
+            self.server_running = False
+            self.server_start_time = None
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+
+    def switch_power(self):
+        if self.server_running:
+            self.stop_server()
+        else:
+            self.start_server()
 
     def update_stats(self):
         """Update server statistics display"""

@@ -1,20 +1,23 @@
 import rites.logger as l
 from client.gui import ServerManagerGUI
+import sys
+import os
+
+LOGGER = l.get_sec_logger("logs", log_name="Client")
+LOGGER.add_custom("critical_error", "CRR", 255, 40, 40)
 
 try:
     from PySide6.QtWidgets import QApplication
     import psutil  # Also check for psutil which we use for stats
 
     GUI_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     GUI_AVAILABLE = False
+    LOGGER.custom("critical_eroor", "GUI not available, resorting to headless mode. See error below:\n", e)
 
-import sys
-import os
 
 # Add parent directory to path so we can import modules from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LOGGER = l.get_sec_logger("logs", log_name="Client", handles_zipping="False")
 
 
 class ServerManagerApp:

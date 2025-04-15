@@ -13,8 +13,8 @@ LOGGER.add_custom("critical_error", "CRR", 255, 40, 40)
 try:
     from client.client import create_app, is_gui_available
     GUI_AVAILABLE = is_gui_available()
-except ImportError:
-    LOGGER.custom("critical_error", "GUI modules not found, falling back to headless mode")
+except ImportError as e:
+    LOGGER.custom("critical_error", "GUI not available, resorting to headless mode. See error below\n", e)
     GUI_AVAILABLE = False
 
 

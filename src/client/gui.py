@@ -103,32 +103,12 @@ class ServerManagerGUI(QMainWindow):
         button_layout.setSpacing(10)
 
         # Start button
-        self.start_button = QPushButton("Start Server")
-        self.start_button.setStyleSheet(
-            "QPushButton { background-color: #5cb85c; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
-            "QPushButton:hover { background-color: #4cae4c; }"
-            "QPushButton:disabled { background-color: #cccccc; }"
-        )
-        self.start_button.clicked.connect(self.start_server)
-        button_layout.addWidget(self.start_button, 0, 0)
-
-        # Stop button
-        self.stop_button = QPushButton("Stop Server")
-        self.stop_button.setStyleSheet(
-            "QPushButton { background-color: #d9534f; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
-            "QPushButton:hover { background-color: #c9302c; }"
-            "QPushButton:disabled { background-color: #cccccc; }"
-        )
-        self.stop_button.clicked.connect(self.stop_server)
-        self.stop_button.setEnabled(False)
-        button_layout.addWidget(self.stop_button, 0, 1)
+        self.power_button = ImageButton("off_button", parent=self, size=(32, 32))
+        self.power_button.clicked.connect(self.switch_power)
+        button_layout.addWidget(self.power_button, 0, 0)
 
         # Open Logs button
-        self.logs_button = QPushButton("Open Logs")
-        self.logs_button.setStyleSheet(
-            "QPushButton { background-color: #5bc0de; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
-            "QPushButton:hover { background-color: #46b8da; }"
-        )
+        self.logs_button = ImageButton("logs_button", parent=self, size=(32, 32))
         self.logs_button.clicked.connect(self.open_logs)
         button_layout.addWidget(self.logs_button, 0, 2)
 
@@ -185,8 +165,14 @@ class ServerManagerGUI(QMainWindow):
 
         self.server_running = True
         self.server_start_time = time.time()
-        self.start_button.setEnabled(False)
-        self.stop_button.setEnabled(True)
+        self.power_button.change_icon("on_button")
+
+    def switch_power(self):
+        """Switch the power state of the server"""
+        if self.server_running:
+            self.stop_server()
+        else:
+            self.start_server()
 
     def _run_server_thread(self):
         """Run the server in a thread"""
@@ -204,7 +190,7 @@ class ServerManagerGUI(QMainWindow):
             LOGGER.error(f"Server error: {str(e)}")
             self.server_running = False
             self.server_start_time = None
-            self.start_button.setEnabled(True)
+            self.power_button.setEnabled(True)
             self.stop_button.setEnabled(False)
 
     def stop_server(self):
@@ -226,8 +212,7 @@ class ServerManagerGUI(QMainWindow):
         self.server_start_time = None
         self.status_changed.emit("Server Status: Offline")
         LOGGER.info("Server has been stopped")
-        self.start_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
+        self.power_button.change_icon("off_button")
 
     def update_stats(self):
         """Update server statistics display"""

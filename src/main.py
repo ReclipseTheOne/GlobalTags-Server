@@ -3,6 +3,7 @@ import signal
 import rites.logger as l
 import argparse
 import loggingHandler
+import src.cfg as cfg
 
 
 # Rites Setup
@@ -26,8 +27,8 @@ def run_server():
     LOGGER.info("Starting FastAPI server...")
     config = uvicorn.Config(
         "server:app",
-        host="0.0.0.0",
-        port=8000,
+        host=f"{cfg.get('host')}",
+        port=int(cfg.get('port')),
         log_level="info",
         log_config=loggingHandler.get_logging_config()
     )

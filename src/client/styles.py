@@ -60,3 +60,21 @@ class Styles:
         font-size: 16px;
         font-weight: bold;
     """
+
+    STATUS_ON = f"""
+        font-size: 18px;
+        font-weight: bold;
+        color: #5cb85c;
+    """
+
+    STATUS_OFF = f"""
+        font-size: 18px;
+        font-weight: bold;
+        color: #d9534f;
+    """
+
+    STATUS_STARTING = f"""
+        font-size: 18px;
+        font-weight: bold;
+        color: #f0ad4e;
+    """

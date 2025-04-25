@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from ..styles import Styles
 
 
 class ServerStatItem(QWidget):
@@ -13,13 +14,13 @@ class ServerStatItem(QWidget):
 
         # Label
         self.label = QLabel(label_text)
-        self.label.setStyleSheet("color: #666; font-size: 12px;")
+        self.label.setStyleSheet(Styles.STATS_LABEL)
         self.layout.addWidget(self.label)
 
         # Value
         self.value = initial_value
         self.text = QLabel(self.value)
-        self.text.setStyleSheet("color: #333; font-size: 16px; font-weight: bold;")
+        self.text.setStyleSheet(Styles.STATS_VALUE)
         self.layout.addWidget(self.text)
 
     def update_value(self, new_value):

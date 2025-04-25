@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QTextEdit, QGridLayout
+from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QTextEdit, QGridLayout, QPushButton
 from PySide6.QtCore import Qt, Signal, QTimer
 import rites.logger as l
 
@@ -26,17 +26,15 @@ class ServerManagerGUI(QMainWindow):
     status_changed = Signal(str)
 
     def __init__(self, run_server_func, stop_server_func=None):
-        super().__init__()
-        self.setWindowFlags(Qt.FramelessWindowHint)
-
+        super().__init__(None, Qt.FramelessWindowHint)
         self.run_server_func = run_server_func
         self.stop_server_func = stop_server_func
         self.server_thread = None
         self.server_running = False
         self.server_process = None
 
-        self.setWindowTitle("GlobalTags Server")
-        self.setGeometry(100, 100, 800, 500)
+        self.setWindowTitle("Tag Server Manager")
+        self.setGeometry(100, 100, 600, 350)  # Smaller window size
         self.setup_ui()
 
         # Connect signals
@@ -48,29 +46,27 @@ class ServerManagerGUI(QMainWindow):
         self.stats_timer.start(2000)  # Update every 2 seconds
 
     def setup_ui(self):
-        "Shouldn't be called more than once"
-
-        # ------------- WINDOW DEFINE START -------------
-
+        """Set up the user interface components"""
         # Main widget and layout
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         main_layout.setSpacing(20)
+        main_widget.setStyleSheet(Styles.MAIN_WIDGET)
 
         # Add custom title bar
-        self.title_bar = CustomTitleBar("GlobalTags Server", self)
-        self.title_bar.closeClicked.connect(self.close)
+        self.title_bar = CustomTitleBar(parent=self)
         self.title_bar.minimizeClicked.connect(self.showMinimized)
+        self.title_bar.closeClicked.connect(self.close)
         main_layout.addWidget(self.title_bar)
 
         # Status section
         status_widget = QWidget()
-        status_widget.setStyleSheet("background-color: #f5f5f5; border-radius: 5px;")
+        status_widget.setStyleSheet(Styles.STATUS_WIDGET)
         status_layout = QVBoxLayout(status_widget)
 
         # Server status label
         self.status_label = QLabel("Server Status: Offline")
-        self.status_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #d9534f;")
+        self.status_label.setStyleSheet(Styles.STATUS_LABEL)
         self.status_label.setAlignment(Qt.AlignCenter)
         status_layout.addWidget(self.status_label)
 
@@ -78,7 +74,7 @@ class ServerManagerGUI(QMainWindow):
 
         # Stats section
         stats_widget = QWidget()
-        stats_widget.setStyleSheet("background-color: #f5f5f5; border-radius: 5px;")
+        stats_widget.setStyleSheet(Styles.STATS_WIDGET)
         stats_layout = QGridLayout(stats_widget)
 
         # Create stat items
@@ -102,28 +98,39 @@ class ServerManagerGUI(QMainWindow):
 
         main_layout.addWidget(stats_widget)
 
-        # Log display
-        log_label = QLabel("Server Logs")
-        log_label.setStyleSheet("font-size: 14px; font-weight: bold;")
-        main_layout.addWidget(log_label)
-
-        self.log_display = QTextEdit()
-        self.log_display.setReadOnly(True)
-        self.log_display.setStyleSheet("background-color: #272822; color: #f8f8f2; font-family: monospace;")
-        self.log_display.setMinimumHeight(200)
-        main_layout.addWidget(self.log_display)
-
         # Button layout
         button_layout = QGridLayout()
         button_layout.setSpacing(10)
 
-        # Power Button
-        self.power_button = ImageButton("src/resources/off_button", size=(16, 16))
-        self.power_button.clicked.connect(self.switch_power)
+        # Start button
+        self.start_button = QPushButton("Start Server")
+        self.start_button.setStyleSheet(
+            "QPushButton { background-color: #5cb85c; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #4cae4c; }"
+            "QPushButton:disabled { background-color: #cccccc; }"
+        )
+        self.start_button.clicked.connect(self.start_server)
+        button_layout.addWidget(self.start_button, 0, 0)
 
-        button_layout.addWidget(self.power_button, 0, 0)
+        # Stop button
+        self.stop_button = QPushButton("Stop Server")
+        self.stop_button.setStyleSheet(
+            "QPushButton { background-color: #d9534f; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #c9302c; }"
+            "QPushButton:disabled { background-color: #cccccc; }"
+        )
+        self.stop_button.clicked.connect(self.stop_server)
+        self.stop_button.setEnabled(False)
+        button_layout.addWidget(self.stop_button, 0, 1)
 
-        # ------------- WINDOW DEFINE END -------------
+        # Open Logs button
+        self.logs_button = QPushButton("Open Logs")
+        self.logs_button.setStyleSheet(
+            "QPushButton { background-color: #5bc0de; color: white; font-weight: bold; padding: 10px; border-radius: 5px; }"
+            "QPushButton:hover { background-color: #46b8da; }"
+        )
+        self.logs_button.clicked.connect(self.open_logs)
+        button_layout.addWidget(self.logs_button, 0, 2)
 
         main_layout.addLayout(button_layout)
         self.setCentralWidget(main_widget)
@@ -142,12 +149,26 @@ class ServerManagerGUI(QMainWindow):
 
         self.status_label.setText(status)
 
-    def append_log(self, message):
-        """Append a message to the log display"""
-        self.log_display.append(message)
-        # Auto-scroll to bottom
-        scrollbar = self.log_display.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+    def open_logs(self):
+        """Open the logs/latest.log file with the default system application"""
+        log_path = os.path.abspath("logs/latest.log")
+
+        if not os.path.exists(log_path):
+            LOGGER.warning(f"Log file not found: {log_path}")
+            return
+
+        try:
+            # Open with default application based on operating system
+            if sys.platform.startswith('darwin'):  # macOS
+                subprocess.call(('open', log_path))
+            elif os.name == 'nt':  # Windows
+                os.startfile(log_path)
+            elif os.name == 'posix':  # Linux
+                subprocess.call(('xdg-open', log_path))
+
+            LOGGER.debug(f"Opened log file: {log_path}")
+        except Exception as e:
+            LOGGER.error(f"Failed to open log file: {str(e)}")
 
     def start_server(self):
         """Start the server in a separate thread"""
@@ -156,7 +177,6 @@ class ServerManagerGUI(QMainWindow):
 
         LOGGER.info("Starting server from GUI...")
         self.status_changed.emit("Server Status: Starting...")
-        self.append_log("[INFO] Starting FastAPI server...")
 
         # Start the server in a separate thread
         self.server_thread = threading.Thread(target=self._run_server_thread)
@@ -165,35 +185,14 @@ class ServerManagerGUI(QMainWindow):
 
         self.server_running = True
         self.server_start_time = time.time()
-        self.power_button.change_icon("src/resources/on_button")
-
-    def stop_server(self):
-        """Stop the server"""
-        if not self.server_running:
-            return
-
-        LOGGER.info("Stopping server from GUI...")
-        self.status_changed.emit("Server Status: Stopping...")
-        self.append_log("[INFO] Stopping FastAPI server...")
-
-        # Call the stop function if provided
-        if self.stop_server_func:
-            try:
-                self.stop_server_func()
-            except Exception as e:
-                self.append_log(f"[ERROR] Failed to stop server gracefully: {str(e)}")
-
-        self.server_running = False
-        self.server_start_time = None
-        self.status_changed.emit("Server Status: Offline")
-        self.append_log("[INFO] Server has been stopped")
-        self.power_button.change_icon("src/resources/off_button")
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
 
     def _run_server_thread(self):
         """Run the server in a thread"""
         try:
             self.status_changed.emit("Server Status: Online")
-            self.append_log("[SUCCESS] Server is now online!")
+            LOGGER.info("Server is now online!")
 
             # Get the current process
             self.server_process = psutil.Process(os.getpid())
@@ -202,17 +201,33 @@ class ServerManagerGUI(QMainWindow):
             self.run_server_func()
         except Exception as e:
             self.status_changed.emit(f"Server Status: Error - {str(e)}")
-            self.append_log(f"[ERROR] {str(e)}")
+            LOGGER.error(f"Server error: {str(e)}")
             self.server_running = False
             self.server_start_time = None
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
 
-    def switch_power(self):
-        if self.server_running:
-            self.stop_server()
-        else:
-            self.start_server()
+    def stop_server(self):
+        """Stop the server"""
+        if not self.server_running:
+            return
+
+        LOGGER.info("Stopping server from GUI...")
+        self.status_changed.emit("Server Status: Stopping...")
+
+        # Call the stop function if provided
+        if self.stop_server_func:
+            try:
+                self.stop_server_func()
+            except Exception as e:
+                LOGGER.error(f"Failed to stop server gracefully: {str(e)}")
+
+        self.server_running = False
+        self.server_start_time = None
+        self.status_changed.emit("Server Status: Offline")
+        LOGGER.info("Server has been stopped")
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
 
     def update_stats(self):
         """Update server statistics display"""
@@ -255,7 +270,7 @@ class ServerManagerGUI(QMainWindow):
             self.endpoints_stat.update_value("4")  # Hardcoded based on your API endpoints
 
         except Exception as e:
-            self.append_log(f"[WARNING] Failed to update stats: {str(e)}")
+            LOGGER.warning(f"Failed to update stats: {str(e)}")
 
 
 class LogHandler:

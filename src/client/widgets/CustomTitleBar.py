@@ -15,6 +15,7 @@ class CustomTitleBar(QWidget):
 
     def __init__(self, parent: QMainWindow, title="GlobalTags"):
         super().__init__(parent)
+        self.setFixedHeight(40)
         self.parent = parent
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(10, 0, 10, 0)
@@ -42,8 +43,6 @@ class CustomTitleBar(QWidget):
         self.layout.addWidget(self.minimize_button)
         self.layout.addWidget(self.close_button)
 
-        # Set fixed height
-        self.setFixedHeight(40)
 
         # Moving logic
         self._dragging = False

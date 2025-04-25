@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import QMouseEvent
 
 from ..styles import Styles
+from .ImageButton import ImageButton
 
 
 class CustomTitleBar(QWidget):
@@ -12,7 +13,7 @@ class CustomTitleBar(QWidget):
     closeClicked = Signal()
     minimizeClicked = Signal()
 
-    def __init__(self, title="Window Title", parent=None):
+    def __init__(self, title="GlobalTags", parent=None):
         super().__init__(parent)
         self.parent = parent
         self.layout = QHBoxLayout(self)
@@ -21,19 +22,20 @@ class CustomTitleBar(QWidget):
 
         # Title
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        self.title_label.setStyleSheet(Styles.TITLE_BAR)
+        self.title_label.setAlignment(Qt.AlignCenter)
 
         # Button style
         button_style = Styles.WINDOW_BAR_BUTTON
 
         # Minimize button
-        self.minimize_button = QPushButton("—")
+        self.minimize_button = ImageButton("minimize_icon", self, size=(16, 16))
         self.minimize_button.setStyleSheet(button_style)
         self.minimize_button.clicked.connect(self.minimizeClicked.emit)
 
         # Close button
-        self.close_button = QPushButton("✕")
-        self.close_button.setStyleSheet(button_style + "QPushButton:hover { background-color: #d9534f; color: white; }")
+        self.close_button = ImageButton("close_icon", self, size=(16, 16))
+        self.close_button.setStyleSheet(button_style)
         self.close_button.clicked.connect(self.closeClicked.emit)
 
         # Add widgets to layout

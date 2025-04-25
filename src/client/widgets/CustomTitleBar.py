@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QMainWindow
 from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtGui import QMouseEvent
 
@@ -13,7 +13,7 @@ class CustomTitleBar(QWidget):
     closeClicked = Signal()
     minimizeClicked = Signal()
 
-    def __init__(self, title="GlobalTags", parent=None):
+    def __init__(self, parent: QMainWindow, title="GlobalTags"):
         super().__init__(parent)
         self.parent = parent
         self.layout = QHBoxLayout(self)
@@ -23,24 +23,22 @@ class CustomTitleBar(QWidget):
         # Title
         self.title_label = QLabel(title)
         self.title_label.setStyleSheet(Styles.TITLE_BAR)
-        self.title_label.setAlignment(Qt.AlignCenter)
-
-        # Button style
-        button_style = Styles.WINDOW_BAR_BUTTON
+        self.title_label.move(QPoint(parent.width() // 2, self.title_label.height()))
 
         # Minimize button
         self.minimize_button = ImageButton("minimize_icon", self, size=(16, 16))
-        self.minimize_button.setStyleSheet(button_style)
+        self.minimize_button.setStyleSheet(Styles.WINDOW_BAR_BUTTON)
         self.minimize_button.clicked.connect(self.minimizeClicked.emit)
 
         # Close button
         self.close_button = ImageButton("close_icon", self, size=(16, 16))
-        self.close_button.setStyleSheet(button_style)
+        self.close_button.setStyleSheet(Styles.WINDOW_BAR_BUTTON)
         self.close_button.clicked.connect(self.closeClicked.emit)
 
-        # Add widgets to layout
         self.layout.addWidget(self.title_label)
-        self.layout.addStretch()
+        self.layout.addStretch(1)
+
+        # Buttonz
         self.layout.addWidget(self.minimize_button)
         self.layout.addWidget(self.close_button)
 

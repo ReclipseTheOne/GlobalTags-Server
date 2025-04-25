@@ -1,18 +1,23 @@
-from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QTextEdit, QGridLayout, QPushButton
+from PySide6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QWidget, QGridLayout, QFrame
 from PySide6.QtCore import Qt, Signal, QTimer
 import rites.logger as l
 
-from .styles import Styles
+from .styles import Styles, Colors
 from .widgets.ImageButton import ImageButton
 
 from .widgets.ServerStatItem import ServerStatItem
 from .widgets.CustomTitleBar import CustomTitleBar
+
+import cfg
 
 import threading
 import os
 import sys
 import time
 import psutil
+import subprocess
+import requests
+import csv
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,18 +37,18 @@ class ServerManagerGUI(QMainWindow):
         self.server_thread = None
         self.server_running = False
         self.server_process = None
+        self.statItems: list[ServerStatItem] = []
 
-        self.setWindowTitle("Tag Server Manager")
         self.setGeometry(100, 100, 600, 350)  # Smaller window size
         self.setup_ui()
 
         # Connect signals
-        self.status_changed.connect(self.update_status)
+        # self.status_changed.connect(self.update_status)
 
         # Setup timer for stats update
         self.stats_timer = QTimer()
         self.stats_timer.timeout.connect(self.update_stats)
-        self.stats_timer.start(2000)  # Update every 2 seconds
+        self.stats_timer.start(1000)  # Update every second
 
     def setup_ui(self):
         """Set up the user interface components"""
@@ -54,10 +59,11 @@ class ServerManagerGUI(QMainWindow):
         main_widget.setStyleSheet(Styles.MAIN_WIDGET)
 
         # Add custom title bar
-        self.title_bar = CustomTitleBar(parent=self)
+        self.title_bar = CustomTitleBar(title="GlobalTags", parent=self)
         self.title_bar.minimizeClicked.connect(self.showMinimized)
         self.title_bar.closeClicked.connect(self.close)
         main_layout.addWidget(self.title_bar)
+        main_layout.addWidget(create_horizontal_line())
 
         # Status section
         status_widget = QWidget()
@@ -70,47 +76,61 @@ class ServerManagerGUI(QMainWindow):
         self.status_label.setAlignment(Qt.AlignCenter)
         status_layout.addWidget(self.status_label)
 
-        main_layout.addWidget(status_widget)
+        # main_layout.addWidget(status_widget)
 
         # Stats section
         stats_widget = QWidget()
         stats_widget.setStyleSheet(Styles.STATS_WIDGET)
         stats_layout = QGridLayout(stats_widget)
+        stats_layout.setHorizontalSpacing(80)
+        stats_layout.setContentsMargins(40, 0, 40, 0)
 
         # Create stat items
         self.uptime_stat = ServerStatItem("Uptime")
+        self.statItems.append(self.uptime_stat)
         stats_layout.addWidget(self.uptime_stat, 0, 0)
 
         self.cpu_stat = ServerStatItem("CPU Usage")
+        self.statItems.append(self.cpu_stat)
         stats_layout.addWidget(self.cpu_stat, 0, 1)
 
         self.memory_stat = ServerStatItem("Memory Usage")
+        self.statItems.append(self.memory_stat)
         stats_layout.addWidget(self.memory_stat, 0, 2)
 
         self.requests_stat = ServerStatItem("Requests Handled")
+        self.statItems.append(self.requests_stat)
         stats_layout.addWidget(self.requests_stat, 1, 0)
 
         self.tags_stat = ServerStatItem("Total Tags")
+        self.statItems.append(self.tags_stat)
         stats_layout.addWidget(self.tags_stat, 1, 1)
 
         self.endpoints_stat = ServerStatItem("Active Endpoints")
+        self.statItems.append(self.endpoints_stat)
         stats_layout.addWidget(self.endpoints_stat, 1, 2)
 
         main_layout.addWidget(stats_widget)
+        main_layout.addWidget(create_horizontal_line())
 
         # Button layout
         button_layout = QGridLayout()
         button_layout.setSpacing(10)
 
-        # Start button
-        self.power_button = ImageButton("off_button", parent=self, size=(32, 32))
-        self.power_button.clicked.connect(self.switch_power)
-        button_layout.addWidget(self.power_button, 0, 0)
-
         # Open Logs button
         self.logs_button = ImageButton("logs_button", parent=self, size=(32, 32))
-        self.logs_button.clicked.connect(self.open_logs)
-        button_layout.addWidget(self.logs_button, 0, 2)
+        self.logs_button.clicked.connect(open_logs)
+        button_layout.addWidget(self.logs_button, 0, 0)
+
+        # Power Button
+        self.power_button = ImageButton("off_button", parent=self, size=(32, 32))
+        self.power_button.clicked.connect(self.switch_power)
+        button_layout.addWidget(self.power_button, 0, 1)
+
+        # Export to CSV
+        self.csv_button = ImageButton("csv_button", parent=self, size=(32, 32))
+        self.csv_button.clicked.connect(export_to_csv)
+        button_layout.addWidget(self.csv_button, 0, 2)
 
         main_layout.addLayout(button_layout)
         self.setCentralWidget(main_widget)
@@ -121,34 +141,13 @@ class ServerManagerGUI(QMainWindow):
     def update_status(self, status):
         """Update the status label with the given status text"""
         if "Online" in status:
-            self.status_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #5cb85c;")
+            self.status_label.setStyleSheet(Styles.STATUS_ON)
         elif "Starting" in status:
-            self.status_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #f0ad4e;")
+            self.status_label.setStyleSheet(Styles.STATUS_STARTING)
         else:
-            self.status_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #d9534f;")
+            self.status_label.setStyleSheet(Styles.STATUS_OFF)
 
         self.status_label.setText(status)
-
-    def open_logs(self):
-        """Open the logs/latest.log file with the default system application"""
-        log_path = os.path.abspath("logs/latest.log")
-
-        if not os.path.exists(log_path):
-            LOGGER.warning(f"Log file not found: {log_path}")
-            return
-
-        try:
-            # Open with default application based on operating system
-            if sys.platform.startswith('darwin'):  # macOS
-                subprocess.call(('open', log_path))
-            elif os.name == 'nt':  # Windows
-                os.startfile(log_path)
-            elif os.name == 'posix':  # Linux
-                subprocess.call(('xdg-open', log_path))
-
-            LOGGER.debug(f"Opened log file: {log_path}")
-        except Exception as e:
-            LOGGER.error(f"Failed to open log file: {str(e)}")
 
     def start_server(self):
         """Start the server in a separate thread"""
@@ -173,6 +172,7 @@ class ServerManagerGUI(QMainWindow):
             self.stop_server()
         else:
             self.start_server()
+        self.update_stats()
 
     def _run_server_thread(self):
         """Run the server in a thread"""
@@ -191,7 +191,6 @@ class ServerManagerGUI(QMainWindow):
             self.server_running = False
             self.server_start_time = None
             self.power_button.setEnabled(True)
-            self.stop_button.setEnabled(False)
 
     def stop_server(self):
         """Stop the server"""
@@ -218,12 +217,9 @@ class ServerManagerGUI(QMainWindow):
         """Update server statistics display"""
         if not self.server_running or not self.server_process:
             # Reset stats if server is not running
-            self.uptime_stat.update_value("N/A")
-            self.cpu_stat.update_value("N/A")
-            self.memory_stat.update_value("N/A")
-            self.requests_stat.update_value("N/A")
-            self.tags_stat.update_value("N/A")
-            self.endpoints_stat.update_value("N/A")
+
+            for stat_item in self.statItems:
+                stat_item.update_value("--")
             return
 
         try:
@@ -243,16 +239,28 @@ class ServerManagerGUI(QMainWindow):
             memory_mb = memory_info.rss / (1024 * 1024)
             self.memory_stat.update_value(f"{memory_mb:.1f} MB")
 
-            # These would need to be implemented with actual server metrics
-            # For now we'll just show placeholders
-            self.requests_stat.update_value("--")
+            try:
+                response = requests.get(f"http://{cfg.get('host')}:{cfg.get('port')}/stats", timeout=2)
+                if response.status_code == 200:
+                    stats = response.json()
+                    self.requests_stat.update_value(str(stats["requests_handled"]))
+                    self.tags_stat.update_value(str(stats["tag_count"]))
 
-            # You could implement these by querying your database
-            # self.tags_stat.update_value(str(count_tags()))
-            self.tags_stat.update_value("--")
-
-            # For FastAPI you could potentially get this from the app object
-            self.endpoints_stat.update_value("4")  # Hardcoded based on your API endpoints
+                    # Update endpoints count if available
+                    if "endpoints_count" in stats:
+                        self.endpoints_stat.update_value(str(stats["endpoints_count"]))
+                    else:
+                        self.endpoints_stat.update_value("5")  # Default value
+                else:
+                    LOGGER.warning(f"Failed to fetch stats: HTTP {response.status_code}")
+                    self.requests_stat.update_value("--")
+                    self.tags_stat.update_value("--")
+                    self.endpoints_stat.update_value("--")
+            except requests.exceptions.RequestException as e:
+                LOGGER.warning(f"Failed to connect to stats endpoint: {str(e)}")
+                self.requests_stat.update_value("--")
+                self.tags_stat.update_value("--")
+                self.endpoints_stat.update_value("--")
 
         except Exception as e:
             LOGGER.warning(f"Failed to update stats: {str(e)}")
@@ -268,3 +276,101 @@ class LogHandler:
         """Emit a log record to the GUI"""
         log_entry = self.format(record)
         self.gui.append_log(log_entry)
+
+
+#----- Standalone Functions -----#
+def open_logs(self):
+    """Open the logs/latest.log file with the default system application"""
+    log_path = os.path.abspath("logs/latest.log")
+
+    if not os.path.exists(log_path):
+        LOGGER.warning(f"Log file not found: {log_path}")
+        return
+
+    try:
+        # Open with default application based on operating system
+        if sys.platform.startswith('darwin'):  # macOS
+            subprocess.call(('open', log_path))
+        elif os.name == 'nt':  # Windows
+            os.startfile(log_path)
+        elif os.name == 'posix':  # Linux
+            subprocess.call(('xdg-open', log_path))
+
+        LOGGER.debug(f"Opened log file: {log_path}")
+    except Exception as e:
+        LOGGER.error(f"Failed to open log file: {str(e)}")
+
+
+def ensure_directory_exists(directory_path):
+    """Ensure that the specified directory exists, creating it if necessary"""
+    if not os.path.exists(directory_path):
+        try:
+            os.makedirs(directory_path)
+            LOGGER.info(f"Created directory: {directory_path}")
+        except Exception as e:
+            LOGGER.error(f"Failed to create directory {directory_path}: {e}")
+            return False
+    return True
+
+
+def fetch_tags(base_url="http://localhost:8000"):
+    """Fetch all tags from the server API"""
+    try:
+        response = requests.get(f"{base_url}/tags")
+
+        if response.status_code == 200:
+            LOGGER.info(f"Successfully fetched {len(response.json())} tags from the server")
+            return response.json()
+        else:
+            LOGGER.error(f"Failed to fetch tags. Status code: {response.status_code}")
+            return None
+    except requests.RequestException as e:
+        LOGGER.error(f"Error fetching tags: {e}")
+        return None
+
+
+def export_to_csv(tags, filepath="./data/tags.csv"):
+    """Export tags to a CSV file"""
+    # Ensure directory exists
+    directory = os.path.dirname(filepath)
+    if not ensure_directory_exists(directory):
+        return False
+
+    try:
+        # Determine fieldnames based on the structure of the tags
+        if not tags or len(tags) == 0:
+            LOGGER.warning("No tags to export")
+            return False
+
+        # Get field names from the first tag
+        fieldnames = tags[0].keys()
+
+        with open(filepath, 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for tag in tags:
+                writer.writerow(tag)
+
+        LOGGER.info(f"Successfully exported {len(tags)} tags to {filepath}")
+        return True
+    except Exception as e:
+        LOGGER.error(f"Error exporting tags to CSV: {e}")
+        return False
+
+
+def export_tags_to_csv(filepath="./data/tags.csv", base_url="http://localhost:8000"):
+    """Fetch tags and export them to a CSV file"""
+    tags = fetch_tags(base_url)
+    if tags:
+        return export_to_csv(tags, filepath)
+    return False
+
+
+def create_horizontal_line():
+    line = QFrame()
+    line.setFrameShape(QFrame.HLine)
+    line.setFrameShadow(QFrame.Sunken)
+    line.setLineWidth(1)
+    # Style the line with your app's color scheme
+    line.setStyleSheet(f"background-color: {Colors.SECONDARY}; margin: 5px 0px;")
+    return line

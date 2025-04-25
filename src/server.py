@@ -20,6 +20,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 app = FastAPI()
 load_dotenv('.env')
+global requests_handled
+requests_handled = 0
 
 
 DATABASE_KEY = os.environ.get("DATABASE_KEY")
@@ -87,12 +89,16 @@ def get_db():
 # Routes
 @app.get("/tags", response_model=List[TagResponseSchema])
 def get_tags(db=Depends(get_db)):
+    global requests_handled
+    requests_handled += 1
     return db.query(Tag).all()
 
 
 @app.get("/tags/{name}", response_model=TagResponseSchema)
 def get_tag(name: str, db=Depends(get_db)):
+    global requests_handled
     tag = db.query(Tag).filter(Tag.name == name).first()
+    requests_handled += 1
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return tag
@@ -100,27 +106,52 @@ def get_tag(name: str, db=Depends(get_db)):
 
 @app.post("/tags", response_model=dict)
 def create_tag(tag: TagSchema, db=Depends(get_db)):
+    global requests_handled
     if tag.key != DATABASE_KEY:
+        requests_handled += 1
         return {"success": False, "error": "Invalid key. Access denied."}
     if tag.name in [t.name for t in db.query(Tag).all()]:
+        requests_handled += 1
         return {"success": False, "error": "Tag already exists"}
 
     db_tag = Tag(name=tag.name, message=tag.message, owner=tag.owner, owner_id=tag.owner_id)
     db.add(db_tag)
     db.commit()
     db.refresh(db_tag)
+    requests_handled += 1
     return {"success": True, "data": TagResponseSchema.model_validate(db_tag)}
 
 
 @app.delete("/tags/{name}", response_model=dict)
 def delete_tag(name: str, delete_tag: DeleteTagSchema = Body(...), db=Depends(get_db)):
+    global requests_handled
     if delete_tag.key != DATABASE_KEY:
+        requests_handled += 1
         return {"success": False, "error": "Invalid key. Access denied."}
 
     tag = db.query(Tag).filter(Tag.name == name).first()
     if not tag:
+        requests_handled += 1
         return {"success": False, "error": "Tag does not exist."}
 
     db.delete(tag)
     db.commit()
+    requests_handled += 1
     return {"success": True}
+
+
+def getTagCount(db):
+    return db.query(Tag).count()
+
+
+def getRequestsHandled():
+    return requests_handled
+
+@app.get("/stats", response_model=dict)
+def get_stats(db=Depends(get_db)):
+    # Don't count stats checking as a requsest
+    return {
+        "tag_count": getTagCount(db),
+        "requests_handled": getRequestsHandled(),
+        "endpoints_count": len([route for route in app.routes])
+    }

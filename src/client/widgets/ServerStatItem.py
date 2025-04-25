@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
 from ..styles import Styles
 
 
 class ServerStatItem(QWidget):
     """Widget to display a server statistic with label and value"""
 
-    def __init__(self, label_text, initial_value="N/A"):
+    def __init__(self, label_text, initial_value="--"):
         super().__init__()
         self.is_on = True
 
@@ -16,11 +17,13 @@ class ServerStatItem(QWidget):
         self.label = QLabel(label_text)
         self.label.setStyleSheet(Styles.STATS_LABEL)
         self.layout.addWidget(self.label)
+        self.label.setAlignment(Qt.AlignCenter)
 
         # Value
         self.value = initial_value
         self.text = QLabel(self.value)
         self.text.setStyleSheet(Styles.STATS_VALUE)
+        self.text.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.text)
 
     def update_value(self, new_value):

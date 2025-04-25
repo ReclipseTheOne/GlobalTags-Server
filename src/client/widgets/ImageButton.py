@@ -16,4 +16,4 @@ class ImageButton(QPushButton):
         self.setStyleSheet(Styles.IMAGE_BUTTON)
 
     def change_icon(self, image_path):
-        self.setIcon(QIcon(image_path))
+        self.setIcon(QIcon("src/resources/" + image_path))

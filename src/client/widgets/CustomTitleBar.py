@@ -46,7 +46,6 @@ class CustomTitleBar(QWidget):
 
         # Set fixed height
         self.setFixedHeight(40)
-        self.setStyleSheet("background-color: #f5f5f5; border-bottom: 1px solid #ddd;")
 
         # Moving logic
         self._dragging = False

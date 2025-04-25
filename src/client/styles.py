@@ -36,11 +36,7 @@ class Styles:
     """
 
     IMAGE_BUTTON = f"""
-        QPushButton {{
-            border: none;
-            background-color:
-            transparent;
-        }}
+        
     """
 
     MAIN_WIDGET = f"""

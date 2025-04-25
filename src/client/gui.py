@@ -8,6 +8,8 @@ from .widgets.ImageButton import ImageButton
 from .widgets.ServerStatItem import ServerStatItem
 from .widgets.CustomTitleBar import CustomTitleBar
 
+from main import export_data_as_csv
+
 import cfg
 
 import threading
@@ -17,7 +19,6 @@ import time
 import psutil
 import subprocess
 import requests
-import csv
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -129,7 +130,7 @@ class ServerManagerGUI(QMainWindow):
 
         # Export to CSV
         self.csv_button = ImageButton("csv_button", parent=self, size=(32, 32))
-        self.csv_button.clicked.connect(export_to_csv)
+        self.csv_button.clicked.connect(export_and_open)
         button_layout.addWidget(self.csv_button, 0, 2)
 
         main_layout.addLayout(button_layout)
@@ -278,7 +279,7 @@ class LogHandler:
         self.gui.append_log(log_entry)
 
 
-#----- Standalone Functions -----#
+# ----- Standalone Functions ----- #
 def open_logs(self):
     """Open the logs/latest.log file with the default system application"""
     log_path = os.path.abspath("logs/latest.log")
@@ -301,71 +302,6 @@ def open_logs(self):
         LOGGER.error(f"Failed to open log file: {str(e)}")
 
 
-def ensure_directory_exists(directory_path):
-    """Ensure that the specified directory exists, creating it if necessary"""
-    if not os.path.exists(directory_path):
-        try:
-            os.makedirs(directory_path)
-            LOGGER.info(f"Created directory: {directory_path}")
-        except Exception as e:
-            LOGGER.error(f"Failed to create directory {directory_path}: {e}")
-            return False
-    return True
-
-
-def fetch_tags(base_url="http://localhost:8000"):
-    """Fetch all tags from the server API"""
-    try:
-        response = requests.get(f"{base_url}/tags")
-
-        if response.status_code == 200:
-            LOGGER.info(f"Successfully fetched {len(response.json())} tags from the server")
-            return response.json()
-        else:
-            LOGGER.error(f"Failed to fetch tags. Status code: {response.status_code}")
-            return None
-    except requests.RequestException as e:
-        LOGGER.error(f"Error fetching tags: {e}")
-        return None
-
-
-def export_to_csv(tags, filepath="./data/tags.csv"):
-    """Export tags to a CSV file"""
-    # Ensure directory exists
-    directory = os.path.dirname(filepath)
-    if not ensure_directory_exists(directory):
-        return False
-
-    try:
-        # Determine fieldnames based on the structure of the tags
-        if not tags or len(tags) == 0:
-            LOGGER.warning("No tags to export")
-            return False
-
-        # Get field names from the first tag
-        fieldnames = tags[0].keys()
-
-        with open(filepath, 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for tag in tags:
-                writer.writerow(tag)
-
-        LOGGER.info(f"Successfully exported {len(tags)} tags to {filepath}")
-        return True
-    except Exception as e:
-        LOGGER.error(f"Error exporting tags to CSV: {e}")
-        return False
-
-
-def export_tags_to_csv(filepath="./data/tags.csv", base_url="http://localhost:8000"):
-    """Fetch tags and export them to a CSV file"""
-    tags = fetch_tags(base_url)
-    if tags:
-        return export_to_csv(tags, filepath)
-    return False
-
-
 def create_horizontal_line():
     line = QFrame()
     line.setFrameShape(QFrame.HLine)
@@ -374,3 +310,18 @@ def create_horizontal_line():
     # Style the line with your app's color scheme
     line.setStyleSheet(f"background-color: {Colors.SECONDARY}; margin: 5px 0px;")
     return line
+
+
+def export_and_open():
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if export_data_as_csv(suffix=timestamp):
+        log_path = os.path.abspath(f"data/tags_export_{timestamp}.csv")
+
+        import subprocess
+        if sys.platform.startswith('darwin'):  # macOS
+            subprocess.call(('open', log_path))
+        elif os.name == 'nt':  # Windows
+            os.startfile(log_path)
+        elif os.name == 'posix':  # Linux
+            subprocess.call(('xdg-open', log_path))

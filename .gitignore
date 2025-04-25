@@ -172,3 +172,5 @@ cython_debug/
 
 tags.db
 logs
+config.json
+data

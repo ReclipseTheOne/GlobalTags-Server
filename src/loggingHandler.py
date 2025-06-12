@@ -1,5 +1,8 @@
 from logging import Handler
 from rites.logger import get_sec_logger
+
+import cfg
+
 import sys
 import os
 
@@ -35,12 +38,13 @@ class RitesAccessHandler(Handler):
 
     def emit(self, record):
         try:
-            # For access logs, don't try to use the formatter at all
-            # Just extract the raw message without trying to format it
             if hasattr(record, 'args') and record.args:
                 # These are the elements of an access log
                 try:
                     client_addr, request_line, status_code = record.args[:3]
+                    if isinstance(client_addr, str):
+                        if client_addr[0:2] == "::" and (cfg.get("ignore_localhost_requests") is True):
+                            return
                     msg = f"{client_addr} - \"{request_line}\" {status_code}"
                 except:
                     msg = record.getMessage()

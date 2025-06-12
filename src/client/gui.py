@@ -8,7 +8,7 @@ from .widgets.ImageButton import ImageButton
 from .widgets.ServerStatItem import ServerStatItem
 from .widgets.CustomTitleBar import CustomTitleBar
 
-from main import export_data_as_csv
+from util import export_data_as_csv
 
 import cfg
 
@@ -71,12 +71,6 @@ class ServerManagerGUI(QMainWindow):
         status_widget.setStyleSheet(Styles.STATUS_WIDGET)
         status_layout = QVBoxLayout(status_widget)
 
-        # Server status label
-        self.status_label = QLabel("Server Status: Offline")
-        self.status_label.setStyleSheet(Styles.STATUS_LABEL)
-        self.status_label.setAlignment(Qt.AlignCenter)
-        status_layout.addWidget(self.status_label)
-
         # main_layout.addWidget(status_widget)
 
         # Stats section
@@ -138,17 +132,6 @@ class ServerManagerGUI(QMainWindow):
 
         # Start time tracking
         self.server_start_time = None
-
-    def update_status(self, status):
-        """Update the status label with the given status text"""
-        if "Online" in status:
-            self.status_label.setStyleSheet(Styles.STATUS_ON)
-        elif "Starting" in status:
-            self.status_label.setStyleSheet(Styles.STATUS_STARTING)
-        else:
-            self.status_label.setStyleSheet(Styles.STATUS_OFF)
-
-        self.status_label.setText(status)
 
     def start_server(self):
         """Start the server in a separate thread"""
@@ -224,7 +207,7 @@ class ServerManagerGUI(QMainWindow):
             return
 
         try:
-            # Uptime
+                        # Uptime
             if self.server_start_time:
                 uptime_seconds = int(time.time() - self.server_start_time)
                 hours, remainder = divmod(uptime_seconds, 3600)
